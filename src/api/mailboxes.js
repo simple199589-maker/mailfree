@@ -5,15 +5,106 @@
 
 import { getJwtPayload, isStrictAdmin, errorResponse } from './helpers.js';
 import { buildMockMailboxes, MOCK_DOMAINS } from './mock.js';
-import { extractEmail, generateRandomId } from '../utils/common.js';
+import { extractEmail, generateRandomId, generateHumanLikeId } from '../utils/common.js';
 import { getCachedUserQuota, getCachedSystemStat } from '../utils/cache.js';
 import {
   getOrCreateMailboxId,
+  getMailboxIdByAddress,
   toggleMailboxPin,
   getTotalMailboxCount,
   assignMailboxToUser
 } from '../db/index.js';
 import { handleMailboxAdminApi } from './mailboxAdmin.js';
+
+const GENERATE_MODE_CLASSIC = 'classic';
+const GENERATE_MODE_HUMAN = 'human';
+const GENERATE_MAX_ATTEMPTS = 12;
+
+/**
+ * 解析邮箱生成模式，未知模式自动回退到经典随机
+ * @param {string} rawMode - 请求中的原始模式值
+ * @returns {string} 可用的生成模式
+ * @author AI by zb
+ */
+function resolveGenerateMode(rawMode) {
+  const mode = String(rawMode || '').trim().toLowerCase();
+  return mode === GENERATE_MODE_HUMAN ? GENERATE_MODE_HUMAN : GENERATE_MODE_CLASSIC;
+}
+
+/**
+ * 根据模式与长度生成邮箱本地部分
+ * @param {number} length - 本地部分目标长度
+ * @param {string} mode - 生成模式
+ * @returns {string} 生成后的邮箱本地部分
+ * @author AI by zb
+ */
+function generateMailboxLocalPart(length, mode) {
+  const requestedLength = Number(length);
+  const normalizedLength = Number.isFinite(requestedLength) && requestedLength > 0
+    ? Math.floor(requestedLength)
+    : undefined;
+
+  if (mode === GENERATE_MODE_HUMAN) {
+    return generateHumanLikeId(normalizedLength || 8);
+  }
+
+  return generateRandomId(normalizedLength || undefined);
+}
+
+/**
+ * 判断错误是否由邮箱地址唯一约束冲突引起
+ * @param {unknown} error - 捕获到的异常对象
+ * @returns {boolean} 是否为唯一约束冲突
+ * @author AI by zb
+ */
+function isMailboxAddressConflictError(error) {
+  const message = String(error?.message || error || '').toLowerCase();
+  return message.includes('unique') || message.includes('constraint');
+}
+
+/**
+ * 生成并持久化一个新的唯一邮箱地址，避免真人风格模式下复用已有邮箱
+ * @param {object} params - 生成参数
+ * @param {object} params.db - 数据库连接
+ * @param {Array<string>} params.domains - 可选域名列表
+ * @param {number} params.domainIndex - 域名索引
+ * @param {number} params.length - 本地部分目标长度
+ * @param {string} params.mode - 生成模式
+ * @param {object|null} params.payload - 当前登录载荷
+ * @returns {Promise<string>} 新创建的邮箱地址
+ * @author AI by zb
+ */
+async function createGeneratedMailbox({ db, domains, domainIndex, length, mode, payload }) {
+  const safeDomains = Array.isArray(domains) && domains.length ? domains : ['temp.example.com'];
+  const safeDomainIndex = Math.max(0, Math.min(safeDomains.length - 1, Number(domainIndex || 0)));
+  const chosenDomain = safeDomains[safeDomainIndex] || safeDomains[0];
+
+  for (let attempt = 0; attempt < GENERATE_MAX_ATTEMPTS; attempt++) {
+    const localPart = generateMailboxLocalPart(length, mode);
+    const email = `${localPart}@${chosenDomain}`.toLowerCase();
+    const existingMailboxId = await getMailboxIdByAddress(db, email);
+
+    if (existingMailboxId) {
+      continue;
+    }
+
+    try {
+      if (payload?.userId) {
+        await assignMailboxToUser(db, { userId: payload.userId, address: email });
+      } else {
+        await getOrCreateMailboxId(db, email);
+      }
+      return email;
+    } catch (error) {
+      if (isMailboxAddressConflictError(error)) {
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  throw new Error('无法生成唯一邮箱，请稍后重试');
+}
 
 /**
  * 处理邮箱管理相关 API
@@ -38,26 +129,31 @@ export async function handleMailboxesApi(request, db, mailDomains, url, path, op
   // 随机生成邮箱
   if (path === '/api/generate') {
     const lengthParam = Number(url.searchParams.get('length') || 0);
-    const randomId = generateRandomId(lengthParam || undefined);
+    const mode = resolveGenerateMode(url.searchParams.get('mode'));
     const domains = isMock ? MOCK_DOMAINS : (Array.isArray(mailDomains) ? mailDomains : [(mailDomains || 'temp.example.com')]);
     const domainIdx = Math.max(0, Math.min(domains.length - 1, Number(url.searchParams.get('domainIndex') || 0)));
-    const chosenDomain = domains[domainIdx] || domains[0];
-    const email = `${randomId}@${chosenDomain}`;
     
-    if (!isMock) {
-      try {
-        const payload = getJwtPayload(request, options);
-        if (payload?.userId) {
-          await assignMailboxToUser(db, { userId: payload.userId, address: email });
-          return Response.json({ email, expires: Date.now() + 3600000 });
-        }
-        await getOrCreateMailboxId(db, email);
-        return Response.json({ email, expires: Date.now() + 3600000 });
-      } catch (e) {
-        return errorResponse(String(e?.message || '创建失败'), 400);
-      }
+    if (isMock) {
+      const localPart = generateMailboxLocalPart(lengthParam || undefined, mode);
+      const chosenDomain = domains[domainIdx] || domains[0];
+      const email = `${localPart}@${chosenDomain}`;
+      return Response.json({ email, expires: Date.now() + 3600000 });
     }
-    return Response.json({ email, expires: Date.now() + 3600000 });
+
+    try {
+      const payload = getJwtPayload(request, options);
+      const email = await createGeneratedMailbox({
+        db,
+        domains,
+        domainIndex: domainIdx,
+        length: lengthParam || undefined,
+        mode,
+        payload
+      });
+      return Response.json({ email, expires: Date.now() + 3600000 });
+    } catch (e) {
+      return errorResponse(String(e?.message || '创建失败'), 400);
+    }
   }
 
   // 自定义创建邮箱

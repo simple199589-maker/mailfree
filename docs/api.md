@@ -135,6 +135,12 @@ curl "https://your.domain/api/session?admin_token=<JWT_TOKEN>"
 |------|------|------|
 | `length` | number | 可选，随机字符串长度 |
 | `domainIndex` | number | 可选，选择域名索引（默认 0） |
+| `mode` | string | 可选，生成模式：`classic` 为经典随机串，`human` 为真人风格邮箱（英文名、拼音名、语义词、出生年月/生日、常见数字随机组合） |
+
+**说明：**
+- 不传 `mode` 时默认使用 `classic`
+- `human` 模式会在上述规则中随机组合，并尽量贴近 `length` 控制邮箱本地部分长度，同时继续使用 `domainIndex` 选择域名
+- `human` 模式示例：`emma1998@example.com`、`wangwei88@example.com`、`sunny_cat520@example.com`
 
 **返回：**
 ```json
@@ -142,6 +148,11 @@ curl "https://your.domain/api/session?admin_token=<JWT_TOKEN>"
   "email": "abc123@example.com",
   "expires": 1704067200000
 }
+```
+
+**调用示例：**
+```bash
+curl "https://your.domain/api/generate?length=12&domainIndex=0&mode=human"
 ```
 
 ### POST /api/create
