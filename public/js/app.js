@@ -66,10 +66,18 @@ function applyTemporaryAccessLayout(session, elements) {
   setView(false);
   if (elements.tabInbox) elements.tabInbox.classList.add('active');
   if (elements.tabSent) elements.tabSent.classList.remove('active');
-  if (elements.boxTitle) elements.boxTitle.textContent = '邮件列表';
+  if (elements.boxTitle) elements.boxTitle.textContent = '公开收件箱';
   if (elements.boxIcon) elements.boxIcon.textContent = '📬';
-  if (session?.mailboxAddress) {
-    updateEmailDisplay(elements, session.mailboxAddress);
+  if (elements.listCard) elements.listCard.style.display = 'block';
+  if (elements.listRefresh) elements.listRefresh.style.display = 'inline-flex';
+  const banner = document.getElementById('temp-mailbox-banner');
+  if (banner && session?.mailboxAddress) {
+    banner.style.display = 'flex';
+    banner.innerHTML = `
+      <span class="temp-mailbox-label">当前公开邮箱</span>
+      <span class="temp-mailbox-address">${escapeHtml(session.mailboxAddress)}</span>
+      <span class="temp-mailbox-tip">仅可查看该邮箱的邮件列表与内容</span>
+    `;
   }
 }
 
@@ -101,12 +109,13 @@ const els = {
   email: document.getElementById('email'), gen: document.getElementById('gen'), genName: document.getElementById('gen-name'),
   copy: document.getElementById('copy'), clear: document.getElementById('clear'), list: document.getElementById('list'),
   listCard: document.getElementById('list-card'), tabInbox: document.getElementById('tab-inbox'), tabSent: document.getElementById('tab-sent'),
-  boxTitle: document.getElementById('box-title'), boxIcon: document.getElementById('box-icon'), refresh: document.getElementById('refresh'),
+  boxTitle: document.getElementById('box-title'), boxIcon: document.getElementById('box-icon'), refresh: document.getElementById('refresh'), listRefresh: document.getElementById('list-refresh'),
   logout: document.getElementById('logout'), modal: document.getElementById('email-modal'), modalClose: document.getElementById('modal-close'),
   modalSubject: document.getElementById('modal-subject'), modalContent: document.getElementById('modal-content'),
   mbList: document.getElementById('mb-list'), mbSearch: document.getElementById('mb-search'), mbLoading: document.getElementById('mb-loading'),
   toast: document.getElementById('toast'), mbPager: document.getElementById('mb-pager'), mbPrev: document.getElementById('mb-prev'),
   mbNext: document.getElementById('mb-next'), mbPageInfo: document.getElementById('mb-page-info'), listLoading: document.getElementById('list-status'),
+  tempMailboxBanner: document.getElementById('temp-mailbox-banner'),
   confirmModal: document.getElementById('confirm-modal'), confirmClose: document.getElementById('confirm-close'),
   confirmMessage: document.getElementById('confirm-message'), confirmCancel: document.getElementById('confirm-cancel'), confirmOk: document.getElementById('confirm-ok'),
   emailActions: document.getElementById('email-actions'), toggleCustom: document.getElementById('toggle-custom'),
@@ -198,6 +207,7 @@ if (els.genName) els.genName.onclick = () => generateNameMailbox(els, lenRange, 
 if (els.copy) els.copy.onclick = () => copyMailboxAddress(showToast);
 if (els.clear) els.clear.onclick = () => clearAllEmails(api, showToast, showConfirm, refresh);
 if (els.refresh) els.refresh.onclick = refresh;
+if (els.listRefresh) els.listRefresh.onclick = refresh;
 if (els.tempAccess) els.tempAccess.onclick = () => generateTemporaryAccess(els, api, showToast);
 if (els.logout) els.logout.addEventListener('click', async () => {
   try { await fetch('/api/logout', { method: 'POST' }); } catch(_) {}
@@ -270,6 +280,7 @@ initCompose(els, api, showToast);
     applyTemporaryAccessLayout(s, els);
     if (s.mailboxAddress) {
       setCurrentMailbox(s.mailboxAddress);
+      updateEmailDisplay(els, s.mailboxAddress);
       resetPager(els);
       await refresh();
       startAutoRefresh(autoRefreshCallback);

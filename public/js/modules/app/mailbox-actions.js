@@ -12,6 +12,20 @@ import { resetPager } from './email-list.js';
 import { resetMbPage } from './mailbox-list.js';
 
 /**
+ * 隐藏临时授权结果面板
+ * @param {object} elements - DOM 元素
+ * @author AI by zb
+ */
+function hideTemporaryAccessResult(elements) {
+  if (window.__TEMP_ACCESS_MODE__) return;
+  const panel = elements?.tempAccessResult;
+  if (panel) {
+    panel.style.display = 'none';
+    panel.innerHTML = '';
+  }
+}
+
+/**
  * 生成随机邮箱
  * @param {object} elements - DOM 元素
  * @param {HTMLInputElement} lenRange - 长度滑块
@@ -171,6 +185,7 @@ export function updateEmailDisplay(elements, address) {
   email?.classList.add('has-email');
   if (emailActions) emailActions.style.display = 'flex';
   if (listCard) listCard.style.display = 'block';
+  hideTemporaryAccessResult(elements);
 }
 
 /**

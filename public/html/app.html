@@ -165,11 +165,16 @@
             <button id="tab-inbox" class="seg-btn" aria-pressed="true">收件箱</button>
             <button id="tab-sent" class="seg-btn" aria-pressed="false">发件箱</button>
           </div>
+          <button id="list-refresh" class="btn btn-ghost btn-sm" style="display:none">
+            <span class="btn-icon">🔄</span>
+            <span>手动刷新</span>
+          </button>
           <div id="list-status" class="loading-indicator" style="pointer-events:none" role="status" aria-live="polite">
             <div id="list-spinner" class="spinner"></div>
             <span id="list-status-text">加载中…</span>
           </div>
         </div>
+        <div id="temp-mailbox-banner" class="temp-mailbox-banner" style="display:none"></div>
         <div class="list-viewport" style="position:relative;contain:layout paint;isolation:isolate;">
           <div id="list" class="list"></div>
           <div id="list-pager" class="pager" style="display:none">

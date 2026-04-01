@@ -1881,6 +1881,42 @@ body::after{
   gap: 8px;
 }
 
+.temp-mailbox-banner{
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 18px 0 6px;
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.09), rgba(59, 130, 246, 0.05));
+  border: 1px solid rgba(99, 102, 241, 0.18);
+  box-shadow: var(--shadow-glass);
+}
+
+.temp-mailbox-label{
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--primary);
+  letter-spacing: 0.06em;
+}
+
+.temp-mailbox-address{
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid var(--border-glass);
+  color: var(--text);
+  font-family: 'SF Mono', Monaco, Consolas, monospace;
+  font-size: 13px;
+  word-break: break-all;
+}
+
+.temp-mailbox-tip{
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
 .config-form{
   display: flex;
   flex-direction: column;
@@ -2310,6 +2346,7 @@ select:disabled{
 }
 
 .temp-access-mode .sidebar,
+.temp-access-mode .generate-card,
 .temp-access-mode .mailbox-config-section,
 .temp-access-mode .nav-actions,
 .temp-access-mode #copy,
@@ -2329,18 +2366,12 @@ select:disabled{
   grid-template-columns: 1fr;
 }
 
-.temp-access-mode #email-actions{
-  display: grid !important;
-  grid-template-columns: minmax(0, 1fr) !important;
-  max-width: 240px;
-}
-
-.temp-access-mode #refresh{
-  display: inline-flex !important;
+.temp-access-mode .inbox-card{
+  margin-top: 0;
 }
 
 .temp-access-mode .listcard-header{
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr auto auto;
 }
 
 .email-sender{

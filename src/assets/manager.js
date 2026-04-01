@@ -116,7 +116,7 @@ export class AssetManager {
     }
 
     if (pathname.startsWith('/info/')) {
-      const infoRequest = new Request(new URL('/index.html', url).toString(), request);
+      const infoRequest = new Request(new URL('/', url).toString(), request);
       return await this.handleIndexPage(infoRequest, env, mailDomains, JWT_TOKEN);
     }
 
@@ -224,10 +224,15 @@ export class AssetManager {
       return Response.redirect(new URL('/html/mailbox.html', url).toString(), 302);
     }
 
-    const resp = await env.ASSETS.fetch(request);
+    let resp = await env.ASSETS.fetch(request);
 
     try {
-      const text = await resp.text();
+      let text = await resp.text();
+      if (!text && url.pathname !== '/') {
+        const fallbackResp = await env.ASSETS.fetch(new Request(new URL('/', url).toString(), request));
+        text = await fallbackResp.text();
+        resp = fallbackResp;
+      }
 
       const injected = text.replace(
         '<meta name="mail-domains" content="">',

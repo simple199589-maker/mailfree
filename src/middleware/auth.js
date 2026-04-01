@@ -274,10 +274,23 @@ export function extractTemporaryAccessCode(request) {
     const headerCode = request.headers.get('X-Temp-Access-Code') || request.headers.get('x-temp-access-code') || '';
     if (headerCode) return String(headerCode).trim().toLowerCase();
     const url = new URL(request.url);
-    return String(url.searchParams.get('temp_access_code') || '').trim().toLowerCase();
+    const queryCode = String(url.searchParams.get('temp_access_code') || '').trim().toLowerCase();
+    if (queryCode) return queryCode;
+    const pathMatch = url.pathname.match(/^\/info\/([^/?#]+)/);
+    return pathMatch ? String(pathMatch[1] || '').trim().toLowerCase() : '';
   } catch (_) {
     return '';
   }
+}
+
+/**
+ * 判断当前请求是否应优先使用临时授权身份
+ * @param {Request} request - HTTP请求对象
+ * @returns {boolean} 是否优先走临时授权
+ * @author AI by zb
+ */
+function shouldPreferTemporaryAccess(request) {
+  return !!extractTemporaryAccessCode(request);
 }
 
 /**
@@ -319,6 +332,11 @@ export async function resolveTemporaryAccessPayload(request, env) {
  * @returns {Promise<object|false>} 认证负载对象
  */
 export async function resolveAuthPayload(request, JWT_TOKEN, env = null) {
+  if (env && shouldPreferTemporaryAccess(request)) {
+    const temporaryPayload = await resolveTemporaryAccessPayload(request, env);
+    if (temporaryPayload) return temporaryPayload;
+  }
+
   const root = checkRootAdminOverride(request, JWT_TOKEN);
   if (root) return root;
   const payload = await verifyJwtWithCache(JWT_TOKEN, request.headers.get('Cookie') || '');
@@ -342,6 +360,15 @@ export async function authMiddleware(context) {
   }
 
   const JWT_TOKEN = env.JWT_TOKEN || env.JWT_SECRET || '';
+
+  if (shouldPreferTemporaryAccess(request)) {
+    const temporaryPayload = await resolveTemporaryAccessPayload(request, env);
+    if (temporaryPayload) {
+      context.authPayload = temporaryPayload;
+      return null;
+    }
+  }
+
   const root = checkRootAdminOverride(request, JWT_TOKEN);
   if (root) {
     context.authPayload = root;
