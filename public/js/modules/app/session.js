@@ -10,6 +10,16 @@ let sessionData = null;
 let isGuestMode = false;
 
 /**
+ * 获取当前页面携带的临时授权请求头
+ * @returns {object} 请求头对象
+ * @author AI by zb
+ */
+function getTemporaryAccessHeaders() {
+  const code = String(window.__TEMP_ACCESS_CODE__ || '').trim();
+  return code ? { 'X-Temp-Access-Code': code } : {};
+}
+
+/**
  * 获取会话数据
  * @returns {object|null}
  */
@@ -26,6 +36,7 @@ export function setSession(data) {
   if (data) {
     isGuestMode = data.role === 'guest';
     window.__GUEST_MODE__ = isGuestMode;
+    window.__TEMP_ACCESS_MODE__ = data.role === 'temp_access' || !!window.__TEMP_ACCESS_CODE__;
   }
 }
 
@@ -74,11 +85,24 @@ export function applySessionUI(session) {
       } else if (session.role === 'guest') {
         badge.classList.add('role-user');
         badge.textContent = '演示模式';
+      } else if (session.role === 'temp_access') {
+        badge.classList.add('role-user');
+        badge.textContent = '临时访问';
       }
     }
     
     const adminLink = document.getElementById('admin');
     const allMailboxesLink = document.getElementById('all-mailboxes');
+    const navActions = document.querySelector('.nav-actions');
+
+    if (session?.role === 'temp_access') {
+      if (navActions) navActions.style.display = 'none';
+      if (adminLink) adminLink.style.display = 'none';
+      if (allMailboxesLink) allMailboxesLink.style.display = 'none';
+      return;
+    }
+
+    if (navActions) navActions.style.display = 'flex';
     
     if (session && (session.strictAdmin || session.role === 'guest')) {
       if (adminLink) adminLink.style.display = 'inline-flex';
@@ -97,6 +121,9 @@ export function initSessionFromCache() {
   try {
     const cachedS = cacheGet('session', 24 * 60 * 60 * 1000);
     if (cachedS) {
+      if (cachedS.role === 'temp_access' && !window.__TEMP_ACCESS_CODE__) {
+        return;
+      }
       setCurrentUserKey(`${cachedS.role || ''}:${cachedS.username || ''}`);
       applySessionUI(cachedS);
       setSession(cachedS);
@@ -110,7 +137,11 @@ export function initSessionFromCache() {
  */
 export async function validateSession() {
   try {
-    const r = await fetch('/api/session');
+    const r = await fetch('/api/session', {
+      headers: {
+        ...getTemporaryAccessHeaders()
+      }
+    });
     if (!r.ok) {
       return null;
     }

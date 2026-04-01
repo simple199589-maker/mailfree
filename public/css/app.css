@@ -1844,6 +1844,43 @@ body::after{
   transform: translateY(-2px);
 }
 
+.temp-access-panel{
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(59, 130, 246, 0.05));
+  box-shadow: var(--shadow-glass);
+}
+
+.temp-access-label{
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--primary);
+  letter-spacing: 0.08em;
+}
+
+.temp-access-link{
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid var(--border-glass);
+  font-family: 'SF Mono', Monaco, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  word-break: break-all;
+  user-select: text;
+}
+
+.temp-access-actions{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .config-form{
   display: flex;
   flex-direction: column;
@@ -2258,6 +2295,53 @@ select:disabled{
 }
 
 .email-item:hover .email-actions{ opacity: 1; }
+
+.email-content-readonly{
+  grid-template-columns: 1fr;
+}
+
+.temp-access-mode .container{
+  grid-template-columns: 1fr;
+  max-width: 980px;
+}
+
+.temp-access-mode .main{
+  grid-column: 1;
+}
+
+.temp-access-mode .sidebar,
+.temp-access-mode .mailbox-config-section,
+.temp-access-mode .nav-actions,
+.temp-access-mode #copy,
+.temp-access-mode #compose,
+.temp-access-mode #clear,
+.temp-access-mode #temp-access,
+.temp-access-mode #temp-access-result,
+.temp-access-mode #forward-setting,
+.temp-access-mode #toggle-favorite,
+.temp-access-mode .view-switch,
+.temp-access-mode .mailbox-item .mailbox-actions,
+.temp-access-mode .email-actions{
+  display: none !important;
+}
+
+.temp-access-mode .mailbox-layout{
+  grid-template-columns: 1fr;
+}
+
+.temp-access-mode #email-actions{
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  max-width: 240px;
+}
+
+.temp-access-mode #refresh{
+  display: inline-flex !important;
+}
+
+.temp-access-mode .listcard-header{
+  grid-template-columns: 1fr auto;
+}
 
 .email-sender{
   display: flex;

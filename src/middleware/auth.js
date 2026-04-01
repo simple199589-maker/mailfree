@@ -3,6 +3,8 @@
  * @module middleware/auth
  */
 
+import { getDatabaseWithValidation, getMailboxByTemporaryAccessCode } from '../db/index.js';
+
 export const COOKIE_NAME = 'iding-session';
 
 // 默认会话过期时间（天）
@@ -262,15 +264,67 @@ export function checkRootAdminOverride(request, JWT_TOKEN) {
 }
 
 /**
+ * 提取请求中的临时授权码
+ * @param {Request} request - HTTP请求对象
+ * @returns {string} 临时授权码
+ * @author AI by zb
+ */
+export function extractTemporaryAccessCode(request) {
+  try {
+    const headerCode = request.headers.get('X-Temp-Access-Code') || request.headers.get('x-temp-access-code') || '';
+    if (headerCode) return String(headerCode).trim().toLowerCase();
+    const url = new URL(request.url);
+    return String(url.searchParams.get('temp_access_code') || '').trim().toLowerCase();
+  } catch (_) {
+    return '';
+  }
+}
+
+/**
+ * 解析临时授权身份
+ * @param {Request} request - HTTP请求对象
+ * @param {object} env - 环境变量对象
+ * @returns {Promise<object|null>} 临时授权身份
+ * @author AI by zb
+ */
+export async function resolveTemporaryAccessPayload(request, env) {
+  const accessCode = extractTemporaryAccessCode(request);
+  if (!accessCode || !env) return null;
+
+  try {
+    const db = await getDatabaseWithValidation(env);
+    const mailbox = await getMailboxByTemporaryAccessCode(db, accessCode);
+    if (!mailbox?.id || !mailbox?.address) {
+      return null;
+    }
+
+    return {
+      role: 'temp_access',
+      username: '__temp_access__',
+      mailboxId: Number(mailbox.id),
+      mailboxAddress: String(mailbox.address || '').toLowerCase(),
+      tempAccessCode: accessCode,
+      readOnly: true
+    };
+  } catch (error) {
+    console.error('解析临时授权失败:', error);
+    return null;
+  }
+}
+
+/**
  * 解析请求的认证负载信息
  * @param {Request} request - HTTP请求对象
  * @param {string} JWT_TOKEN - JWT密钥令牌
  * @returns {Promise<object|false>} 认证负载对象
  */
-export async function resolveAuthPayload(request, JWT_TOKEN) {
+export async function resolveAuthPayload(request, JWT_TOKEN, env = null) {
   const root = checkRootAdminOverride(request, JWT_TOKEN);
   if (root) return root;
-  return await verifyJwtWithCache(JWT_TOKEN, request.headers.get('Cookie') || '');
+  const payload = await verifyJwtWithCache(JWT_TOKEN, request.headers.get('Cookie') || '');
+  if (payload) return payload;
+  if (!env) return false;
+  return await resolveTemporaryAccessPayload(request, env);
 }
 
 /**
@@ -295,10 +349,16 @@ export async function authMiddleware(context) {
   }
 
   const payload = await verifyJwtWithCache(JWT_TOKEN, request.headers.get('Cookie') || '');
-  if (!payload) {
-    return new Response('Unauthorized', { status: 401 });
+  if (payload) {
+    context.authPayload = payload;
+    return null;
   }
 
-  context.authPayload = payload;
-  return null;
+  const temporaryPayload = await resolveTemporaryAccessPayload(request, env);
+  if (temporaryPayload) {
+    context.authPayload = temporaryPayload;
+    return null;
+  }
+
+  return new Response('Unauthorized', { status: 401 });
 }

@@ -11,7 +11,9 @@ export {
   checkMailboxOwnership,
   toggleMailboxPin,
   getTotalMailboxCount,
-  getForwardTarget
+  getForwardTarget,
+  setMailboxTemporaryAccessCode,
+  getMailboxByTemporaryAccessCode
 } from './mailboxes.js';
 export {
   createUser,

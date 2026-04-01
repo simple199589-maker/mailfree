@@ -462,6 +462,22 @@ export async function sha256Hex(text) {
 }
 
 /**
+ * 基于邮箱地址与盐值生成固定的临时授权码
+ * @param {string} email - 邮箱地址
+ * @param {string} salt - 授权盐值
+ * @returns {Promise<string>} 32位十六进制授权码
+ * @author AI by zb
+ */
+export async function buildTemporaryAccessCode(email, salt) {
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  const normalizedSalt = String(salt || '').trim() || '123@x5';
+  const entropy = (globalThis.crypto?.randomUUID && globalThis.crypto.randomUUID())
+    || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const digest = await sha256Hex(`${normalizedEmail}:${normalizedSalt}:${entropy}`);
+  return digest.slice(0, 32);
+}
+
+/**
  * 验证原始密码与哈希密码是否匹配
  * @param {string} rawPassword - 原始明文密码
  * @param {string} hashed - 已哈希的密码

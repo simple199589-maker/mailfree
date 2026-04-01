@@ -162,8 +162,13 @@ export function createRouter() {
     };
 
     // 邮箱用户返回邮箱地址
-    if (authPayload.role === 'mailbox' && authPayload.mailboxAddress) {
+    if ((authPayload.role === 'mailbox' || authPayload.role === 'temp_access') && authPayload.mailboxAddress) {
       response.mailboxAddress = authPayload.mailboxAddress;
+    }
+
+    if (authPayload.role === 'temp_access') {
+      response.temporaryAccess = true;
+      response.readOnly = true;
     }
 
     return Response.json(response);
@@ -255,7 +260,21 @@ async function delegateApiRequest(context) {
       adminName: ADMIN_NAME,
       r2: env.MAIL_EML,
       authPayload,
-      mailboxOnly: true
+      mailboxOnly: true,
+      tempAccessSalt: env.TEMP_ACCESS_SALT || env.TEMP_AUTH_SALT || '123@x5'
+    });
+  }
+
+  // 临时授权用户只能只读访问指定邮箱
+  if (authPayload.role === 'temp_access') {
+    return handleApiRequest(request, DB, MAIL_DOMAINS, {
+      mockOnly: false,
+      resendApiKey: RESEND_API_KEY,
+      adminName: ADMIN_NAME,
+      r2: env.MAIL_EML,
+      authPayload,
+      temporaryAccess: true,
+      tempAccessSalt: env.TEMP_ACCESS_SALT || env.TEMP_AUTH_SALT || '123@x5'
     });
   }
 
@@ -264,7 +283,8 @@ async function delegateApiRequest(context) {
     resendApiKey: RESEND_API_KEY,
     adminName: ADMIN_NAME,
     r2: env.MAIL_EML,
-    authPayload
+    authPayload,
+    tempAccessSalt: env.TEMP_ACCESS_SALT || env.TEMP_AUTH_SALT || '123@x5'
   });
 }
 

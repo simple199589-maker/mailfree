@@ -188,3 +188,44 @@ export async function getForwardTarget(db, address) {
   
   return result?.forward_to || null;
 }
+
+/**
+ * 为指定邮箱设置临时授权码
+ * @param {object} db - 数据库连接对象
+ * @param {string} address - 邮箱地址
+ * @param {string} code - 临时授权码
+ * @returns {Promise<object|null>} 更新后的邮箱记录
+ * @author AI by zb
+ */
+export async function setMailboxTemporaryAccessCode(db, address, code) {
+  const normalizedAddress = String(address || '').trim().toLowerCase();
+  const normalizedCode = String(code || '').trim().toLowerCase();
+  if (!normalizedAddress || !normalizedCode) return null;
+
+  await db.prepare('UPDATE mailboxes SET temp_access_code = ? WHERE address = ?')
+    .bind(normalizedCode, normalizedAddress)
+    .run();
+
+  return await db.prepare(
+    'SELECT id, address, temp_access_code FROM mailboxes WHERE address = ? LIMIT 1'
+  ).bind(normalizedAddress).first();
+}
+
+/**
+ * 通过临时授权码查找邮箱
+ * @param {object} db - 数据库连接对象
+ * @param {string} code - 临时授权码
+ * @returns {Promise<object|null>} 匹配到的邮箱记录
+ * @author AI by zb
+ */
+export async function getMailboxByTemporaryAccessCode(db, code) {
+  const normalizedCode = String(code || '').trim().toLowerCase();
+  if (!normalizedCode) return null;
+
+  return await db.prepare(`
+    SELECT id, address, local_part, domain, temp_access_code
+    FROM mailboxes
+    WHERE temp_access_code = ?
+    LIMIT 1
+  `).bind(normalizedCode).first();
+}

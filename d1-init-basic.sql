@@ -14,12 +14,14 @@ CREATE TABLE IF NOT EXISTS mailboxes (
   expires_at TEXT,
   is_pinned INTEGER DEFAULT 0,
   forward_to TEXT DEFAULT NULL,
-  is_favorite INTEGER DEFAULT 0
+  is_favorite INTEGER DEFAULT 0,
+  temp_access_code TEXT DEFAULT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_mailboxes_address ON mailboxes(address);
 CREATE INDEX IF NOT EXISTS idx_mailboxes_is_pinned ON mailboxes(is_pinned DESC);
 CREATE INDEX IF NOT EXISTS idx_mailboxes_is_favorite ON mailboxes(is_favorite DESC);
+CREATE INDEX IF NOT EXISTS idx_mailboxes_temp_access_code ON mailboxes(temp_access_code);
 
 CREATE TABLE IF NOT EXISTS messages (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

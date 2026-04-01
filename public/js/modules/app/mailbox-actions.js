@@ -281,6 +281,71 @@ export async function copyMailboxAddress(showToast) {
 }
 
 /**
+ * 生成当前邮箱的临时授权链接并展示结果
+ * @param {object} elements - DOM 元素
+ * @param {Function} api - API 函数
+ * @param {Function} showToast - 提示函数
+ * @returns {Promise<void>}
+ * @author AI by zb
+ */
+export async function generateTemporaryAccess(elements, api, showToast) {
+  const mailbox = getCurrentMailbox();
+  const { tempAccess, tempAccessResult } = elements;
+
+  if (!mailbox) {
+    showToast('请先选择一个邮箱', 'warn');
+    return;
+  }
+
+  try {
+    setButtonLoading(tempAccess, '生成中…');
+    const response = await api('/api/mailboxes/temp-access', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ address: mailbox })
+    });
+
+    if (!response.ok) {
+      throw new Error(await response.text());
+    }
+
+    const result = await response.json();
+    if (tempAccessResult) {
+      tempAccessResult.style.display = 'flex';
+      tempAccessResult.innerHTML = `
+        <div class="temp-access-label">临时访问链接</div>
+        <div class="temp-access-link">${result.url || result.code || ''}</div>
+        <div class="temp-access-actions">
+          <button type="button" id="temp-access-copy" class="btn btn-secondary btn-sm">复制链接</button>
+          <a id="temp-access-open" class="btn btn-ghost btn-sm" href="${result.url || '#'}" target="_blank" rel="noopener noreferrer">打开链接</a>
+        </div>
+      `;
+
+      const copyButton = tempAccessResult.querySelector('#temp-access-copy');
+      copyButton?.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(result.url || result.code || '');
+          showToast('临时访问链接已复制', 'success');
+        } catch (_) {
+          showToast('复制失败，请手动复制', 'warn');
+        }
+      });
+    }
+
+    try {
+      await navigator.clipboard.writeText(result.url || result.code || '');
+      showToast('临时访问链接已生成并复制', 'success');
+    } catch (_) {
+      showToast('临时访问链接已生成', 'success');
+    }
+  } catch (error) {
+    showToast(error.message || '生成临时授权失败', 'error');
+  } finally {
+    restoreButton(tempAccess);
+  }
+}
+
+/**
  * 清空邮件
  * @param {Function} api - API 函数
  * @param {Function} showToast - 提示函数
@@ -337,6 +402,7 @@ export default {
   toggleMailboxPin,
   deleteMailboxAddress,
   copyMailboxAddress,
+  generateTemporaryAccess,
   clearAllEmails,
   logout
 };

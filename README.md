@@ -112,6 +112,7 @@
 | ADMIN_PASSWORD | 严格管理员密码 | 是 |
 | ADMIN_NAME | 严格管理员用户名（默认 `admin`） | 否 |
 | JWT_TOKEN | JWT 签名密钥 | 是 |
+| TEMP_ACCESS_SALT | 临时授权链接的生成盐值，默认 `123@x5` | 否 |
 | RESEND_API_KEY | Resend 发件密钥，支持多域名配置 | 否 |
 | FORWARD_RULES | 邮件转发规则 | 否 |
 

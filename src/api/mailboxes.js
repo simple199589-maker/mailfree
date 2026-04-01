@@ -5,14 +5,15 @@
 
 import { getJwtPayload, isStrictAdmin, errorResponse } from './helpers.js';
 import { buildMockMailboxes, MOCK_DOMAINS } from './mock.js';
-import { extractEmail, generateRandomId, generateHumanLikeId } from '../utils/common.js';
+import { extractEmail, generateRandomId, generateHumanLikeId, buildTemporaryAccessCode } from '../utils/common.js';
 import { getCachedUserQuota, getCachedSystemStat } from '../utils/cache.js';
 import {
   getOrCreateMailboxId,
   getMailboxIdByAddress,
   toggleMailboxPin,
   getTotalMailboxCount,
-  assignMailboxToUser
+  assignMailboxToUser,
+  setMailboxTemporaryAccessCode
 } from '../db/index.js';
 import { handleMailboxAdminApi } from './mailboxAdmin.js';
 
@@ -237,6 +238,43 @@ export async function handleMailboxesApi(request, db, mailDomains, url, path, op
       });
     } catch (e) {
       return errorResponse('查询失败', 500);
+    }
+  }
+
+  // 管理员生成邮箱临时授权码
+  if (path === '/api/mailboxes/temp-access' && request.method === 'POST') {
+    const payload = getJwtPayload(request, options);
+    if (!payload || payload.role !== 'admin') {
+      return errorResponse('仅管理员可生成临时授权', 403);
+    }
+
+    try {
+      const body = await request.json();
+      const address = String(body.address || '').trim().toLowerCase();
+      if (!address) return errorResponse('缺少邮箱地址', 400);
+
+      const mailbox = await db.prepare(
+        'SELECT id, address FROM mailboxes WHERE address = ? LIMIT 1'
+      ).bind(address).first();
+
+      if (!mailbox?.id) {
+        return errorResponse('邮箱不存在', 404);
+      }
+
+      const code = await buildTemporaryAccessCode(mailbox.address, options.tempAccessSalt || '123@x5');
+      await setMailboxTemporaryAccessCode(db, mailbox.address, code);
+
+      const baseUrl = new URL(request.url);
+      const accessUrl = `${baseUrl.origin}/info/${code}`;
+
+      return Response.json({
+        success: true,
+        address: mailbox.address,
+        code,
+        url: accessUrl
+      });
+    } catch (_) {
+      return errorResponse('Bad Request', 400);
     }
   }
 

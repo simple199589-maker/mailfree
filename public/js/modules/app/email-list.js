@@ -132,6 +132,7 @@ export function statusClass(status) {
  */
 export function renderEmailItem(email, isMobile = false) {
   const e = email;
+  const isTemporaryAccessMode = !!window.__TEMP_ACCESS_MODE__;
   
   // 智能内容预览处理
   let rawContent = isSentView ? (e.text_content || e.html_content || '') : (e.preview || e.content || e.html_content || '');
@@ -167,6 +168,17 @@ export function renderEmailItem(email, isMobile = false) {
   const metaLabel = isSentView ? '收件人' : '发件人';
   const metaText = isSentView ? escapeHtml(recipientsDisplay) : senderText;
   const timeDisplay = isMobile ? formatTsMobile(e.received_at || e.created_at) : formatTs(e.received_at || e.created_at);
+  const actionHtml = isSentView
+    ? `
+            <span class="status-badge ${statusClass(e.status)}">${e.status || 'unknown'}</span>
+            <button class="btn btn-danger btn-sm" onclick="deleteSent(${e.id});event.stopPropagation()" title="删除记录"><span class="btn-icon">🗑️</span></button>
+          `
+    : isTemporaryAccessMode
+      ? ''
+      : `
+            <button class="btn btn-secondary btn-sm" data-code="${listCode || ''}" onclick="copyFromList(event, ${e.id});event.stopPropagation()" title="复制内容或验证码"><span class="btn-icon">📋</span></button>
+            <button class="btn btn-danger btn-sm" onclick="deleteEmail(${e.id});event.stopPropagation()" title="删除邮件"><span class="btn-icon">🗑️</span></button>
+          `;
   
   return `
     <div class="email-item clickable" onclick="${isSentView ? `showSentEmail(${e.id})` : `showEmail(${e.id})`}">
@@ -174,20 +186,12 @@ export function renderEmailItem(email, isMobile = false) {
         <span class="meta-from"><span class="meta-label">${metaLabel}</span><span class="meta-from-text">${metaText}</span></span>
         <span class="email-time"><span class="time-icon">🕐</span>${timeDisplay}</span>
       </div>
-      <div class="email-content">
+      <div class="email-content ${isTemporaryAccessMode && !isSentView ? 'email-content-readonly' : ''}">
         <div class="email-main">
           <div class="email-line"><span class="label-chip">主题</span><span class="value-text subject">${subjectText}</span></div>
           <div class="email-line"><span class="label-chip">内容</span>${hasContent ? `<span class="email-preview value-text">${previewText}</span>` : '<span class="email-preview value-text" style="color:#94a3b8">(暂无预览)</span>'}</div>
         </div>
-        <div class="email-actions">
-          ${isSentView ? `
-            <span class="status-badge ${statusClass(e.status)}">${e.status || 'unknown'}</span>
-            <button class="btn btn-danger btn-sm" onclick="deleteSent(${e.id});event.stopPropagation()" title="删除记录"><span class="btn-icon">🗑️</span></button>
-          ` : `
-            <button class="btn btn-secondary btn-sm" data-code="${listCode || ''}" onclick="copyFromList(event, ${e.id});event.stopPropagation()" title="复制内容或验证码"><span class="btn-icon">📋</span></button>
-            <button class="btn btn-danger btn-sm" onclick="deleteEmail(${e.id});event.stopPropagation()" title="删除邮件"><span class="btn-icon">🗑️</span></button>
-          `}
-        </div>
+        ${actionHtml ? `<div class="email-actions">${actionHtml}</div>` : ''}
       </div>
     </div>`;
 }

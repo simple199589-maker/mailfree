@@ -50,7 +50,8 @@ export class AssetManager {
       '/public/',
       '/js/',
       '/css/',
-      '/html/'
+      '/html/',
+      '/info/'
     ];
 
     this.protectedPaths = new Set([
@@ -95,12 +96,12 @@ export class AssetManager {
     }
 
     if (this.isProtectedPath(pathname)) {
-      const authResult = await this.checkProtectedPathAuth(request, JWT_TOKEN, url);
+      const authResult = await this.checkProtectedPathAuth(request, env, JWT_TOKEN, url);
       if (authResult) return authResult;
     }
 
     if (this.isGuestOnlyPath(pathname)) {
-      const guestResult = await this.checkGuestOnlyPath(request, JWT_TOKEN, url);
+      const guestResult = await this.checkGuestOnlyPath(request, env, JWT_TOKEN, url);
       if (guestResult) return guestResult;
     }
 
@@ -112,6 +113,11 @@ export class AssetManager {
 
     if (pathname === '/' || pathname === '/index.html') {
       return await this.handleIndexPage(mappedRequest, env, mailDomains, JWT_TOKEN);
+    }
+
+    if (pathname.startsWith('/info/')) {
+      const infoRequest = new Request(new URL('/index.html', url).toString(), request);
+      return await this.handleIndexPage(infoRequest, env, mailDomains, JWT_TOKEN);
     }
 
     if (pathname === '/admin.html') {
@@ -130,7 +136,7 @@ export class AssetManager {
 
   async handleIllegalPath(request, env, JWT_TOKEN) {
     const url = new URL(request.url);
-    const payload = await resolveAuthPayload(request, JWT_TOKEN);
+    const payload = await resolveAuthPayload(request, JWT_TOKEN, env);
 
     if (payload !== false) {
       if (payload.role === 'mailbox') {
@@ -143,8 +149,8 @@ export class AssetManager {
     return Response.redirect(new URL('/templates/loading.html', url).toString(), 302);
   }
 
-  async checkProtectedPathAuth(request, JWT_TOKEN, url) {
-    const payload = await resolveAuthPayload(request, JWT_TOKEN);
+  async checkProtectedPathAuth(request, env, JWT_TOKEN, url) {
+    const payload = await resolveAuthPayload(request, JWT_TOKEN, env);
 
     if (!payload) {
       const loading = new URL('/templates/loading.html', url);
@@ -173,8 +179,8 @@ export class AssetManager {
     return null;
   }
 
-  async checkGuestOnlyPath(request, JWT_TOKEN, url) {
-    const payload = await resolveAuthPayload(request, JWT_TOKEN);
+  async checkGuestOnlyPath(request, env, JWT_TOKEN, url) {
+    const payload = await resolveAuthPayload(request, JWT_TOKEN, env);
 
     if (payload !== false) {
       return Response.redirect(new URL('/', url).toString(), 302);
@@ -212,7 +218,7 @@ export class AssetManager {
 
   async handleIndexPage(request, env, mailDomains, JWT_TOKEN) {
     const url = new URL(request.url);
-    const payload = await resolveAuthPayload(request, JWT_TOKEN);
+    const payload = await resolveAuthPayload(request, JWT_TOKEN, env);
 
     if (payload && payload.role === 'mailbox') {
       return Response.redirect(new URL('/html/mailbox.html', url).toString(), 302);
@@ -241,7 +247,7 @@ export class AssetManager {
 
   async handleAdminPage(request, env, JWT_TOKEN) {
     const url = new URL(request.url);
-    const payload = await resolveAuthPayload(request, JWT_TOKEN);
+    const payload = await resolveAuthPayload(request, JWT_TOKEN, env);
 
     if (!payload) {
       const loadingReq = new Request(
@@ -261,7 +267,7 @@ export class AssetManager {
 
   async handleMailboxPage(request, env, JWT_TOKEN) {
     const url = new URL(request.url);
-    const payload = await resolveAuthPayload(request, JWT_TOKEN);
+    const payload = await resolveAuthPayload(request, JWT_TOKEN, env);
 
     if (!payload) {
       const loadingReq = new Request(

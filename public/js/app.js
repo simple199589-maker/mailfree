@@ -18,21 +18,73 @@ import { initSessionFromCache, validateSession, isGuest, isAdmin, applySessionUI
 import { loadDomains, getStoredLength, saveLength, updateRangeProgress, getSelectedDomainIndex, populateDomains, STORAGE_KEYS } from './modules/app/domains.js';
 import { initCompose, showSentEmailDetail } from './modules/app/compose.js';
 import { showEmailDetail, deleteEmailById, deleteSentById, copyFromEmailList, prefetchEmails } from './modules/app/email-viewer.js';
-import { generateMailbox, generateNameMailbox, createCustomMailbox, updateEmailDisplay, selectMailboxAddress, toggleMailboxPin, deleteMailboxAddress, copyMailboxAddress, clearAllEmails, logout } from './modules/app/mailbox-actions.js';
+import { generateMailbox, generateNameMailbox, createCustomMailbox, updateEmailDisplay, selectMailboxAddress, toggleMailboxPin, deleteMailboxAddress, copyMailboxAddress, clearAllEmails, generateTemporaryAccess, logout } from './modules/app/mailbox-actions.js';
 
 // 全局状态
 window.__GUEST_MODE__ = false;
 window.__MOCK_STATE__ = MOCK_STATE;
+window.__TEMP_ACCESS_MODE__ = false;
+window.__TEMP_ACCESS_CODE__ = '';
 try { if (sessionStorage.getItem('mf:just_logged_in') === '1') sessionStorage.removeItem('mf:just_logged_in'); } catch(_) {}
 
 // 注入弹窗样式
 injectDialogStyles();
 
+/**
+ * 从当前路径中提取临时授权码
+ * @returns {string} 临时授权码
+ * @author AI by zb
+ */
+function getTemporaryAccessCodeFromPath() {
+  const matched = window.location.pathname.match(/^\/info\/([^/?#]+)/);
+  return matched ? decodeURIComponent(matched[1]) : '';
+}
+
+/**
+ * 为请求附加临时授权头
+ * @param {RequestInit} options - 原始请求选项
+ * @returns {RequestInit} 处理后的请求选项
+ * @author AI by zb
+ */
+function applyApiAccessHeaders(options = {}) {
+  const code = String(window.__TEMP_ACCESS_CODE__ || '').trim();
+  if (!code) return options;
+
+  const headers = new Headers(options.headers || {});
+  headers.set('X-Temp-Access-Code', code);
+  return { ...options, headers };
+}
+
+/**
+ * 应用临时授权只读布局
+ * @param {object} session - 当前会话
+ * @param {object} elements - 页面元素集合
+ * @author AI by zb
+ */
+function applyTemporaryAccessLayout(session, elements) {
+  document.body.classList.add('temp-access-mode');
+  setView(false);
+  if (elements.tabInbox) elements.tabInbox.classList.add('active');
+  if (elements.tabSent) elements.tabSent.classList.remove('active');
+  if (elements.boxTitle) elements.boxTitle.textContent = '邮件列表';
+  if (elements.boxIcon) elements.boxIcon.textContent = '📬';
+  if (session?.mailboxAddress) {
+    updateEmailDisplay(elements, session.mailboxAddress);
+  }
+}
+
+window.__TEMP_ACCESS_CODE__ = getTemporaryAccessCodeFromPath();
+window.__TEMP_ACCESS_MODE__ = !!window.__TEMP_ACCESS_CODE__;
+
 // API 请求封装
 async function api(path, options) {
   if (window.__GUEST_MODE__) return mockApi(path, options);
-  const res = await fetch(path, options);
+  const res = await fetch(path, applyApiAccessHeaders(options));
   if (res.status === 401) {
+    if (window.__TEMP_ACCESS_MODE__) {
+      location.replace('/');
+      throw new Error('unauthorized');
+    }
     if (location.pathname !== '/html/login.html') location.replace('/html/login.html');
     throw new Error('unauthorized');
   }
@@ -68,12 +120,17 @@ const els = {
   sidebarToggle: document.getElementById('sidebar-toggle'), sidebarToggleIcon: document.getElementById('sidebar-toggle-icon'),
   sidebar: document.querySelector('.sidebar'), container: document.querySelector('.container'),
   forwardSetting: document.getElementById('forward-setting'), toggleFavorite: document.getElementById('toggle-favorite'),
-  favoriteIcon: document.getElementById('favorite-icon'), favoriteText: document.getElementById('favorite-text')
+  favoriteIcon: document.getElementById('favorite-icon'), favoriteText: document.getElementById('favorite-text'),
+  tempAccess: document.getElementById('temp-access'), tempAccessResult: document.getElementById('temp-access-result')
 };
 const lenRange = document.getElementById('len-range'), lenVal = document.getElementById('len-val'), domainSelect = document.getElementById('domain-select');
 
 // 初始化
-initSessionFromCache();
+if (!window.__TEMP_ACCESS_MODE__) {
+  initSessionFromCache();
+} else {
+  document.body.classList.add('temp-access-mode');
+}
 // showToast 由 toast-utils.js 全局提供
 const showToast = window.showToast || ((msg, type) => console.log(`[${type}] ${msg}`));
 
@@ -141,6 +198,7 @@ if (els.genName) els.genName.onclick = () => generateNameMailbox(els, lenRange, 
 if (els.copy) els.copy.onclick = () => copyMailboxAddress(showToast);
 if (els.clear) els.clear.onclick = () => clearAllEmails(api, showToast, showConfirm, refresh);
 if (els.refresh) els.refresh.onclick = refresh;
+if (els.tempAccess) els.tempAccess.onclick = () => generateTemporaryAccess(els, api, showToast);
 if (els.logout) els.logout.addEventListener('click', async () => {
   try { await fetch('/api/logout', { method: 'POST' }); } catch(_) {}
   location.replace('/html/login.html');
@@ -197,7 +255,29 @@ initCompose(els, api, showToast);
 // 会话验证
 (async () => {
   const s = await validateSession();
-  if (!s) { clearCurrentMailbox(); stopAutoRefresh(); location.replace('/html/login.html'); return; }
+  if (!s) {
+    clearCurrentMailbox();
+    stopAutoRefresh();
+    location.replace(window.__TEMP_ACCESS_MODE__ ? '/' : '/html/login.html');
+    return;
+  }
+
+  if (els.tempAccess) {
+    els.tempAccess.style.display = isAdmin() ? 'inline-flex' : 'none';
+  }
+
+  if (s.role === 'temp_access') {
+    applyTemporaryAccessLayout(s, els);
+    if (s.mailboxAddress) {
+      setCurrentMailbox(s.mailboxAddress);
+      resetPager(els);
+      await refresh();
+      startAutoRefresh(autoRefreshCallback);
+    }
+    initVisibilityTracking();
+    return;
+  }
+
   if (s.role === 'guest') { initGuestMode(); if (domainSelect) { domainSelect.innerHTML = '<option value="0">example.com</option>'; domainSelect.disabled = true; } populateDomains(['example.com'], domainSelect); }
   else await loadDomains(domainSelect, api);
   try { const qr = await api('/api/user/quota'); const q = await qr.json(); const el = document.getElementById('quota'); if (el && q) { el.textContent = isAdmin() ? `${q.total || 0} 邮箱` : `${q.used || 0} / ${q.limit || 0}`; }} catch(_) {}

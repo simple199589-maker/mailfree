@@ -15,6 +15,7 @@ import { getEmailFromCache, setEmailCache } from './email-list.js';
  */
 export async function showEmailDetail(id, elements, api, showToast) {
   const { modal, modalSubject, modalContent } = elements;
+  const isTemporaryAccessMode = !!window.__TEMP_ACCESS_MODE__;
   
   try {
     let email = getEmailFromCache(id);
@@ -33,8 +34,8 @@ export async function showEmailDetail(id, elements, api, showToast) {
       contentHtml += `
         <div class="verification-code-box" style="margin-bottom:16px;padding:12px;background:var(--success-light);border-radius:8px;display:flex;align-items:center;gap:12px">
           <span style="font-size:20px">🔑</span>
-          <span style="font-size:18px;font-weight:600;font-family:monospace;cursor:pointer" onclick="navigator.clipboard.writeText('${code}').then(()=>showToast('验证码已复制','success'))">${code}</span>
-          <span style="font-size:12px;color:var(--text-muted)">点击复制</span>
+          <span style="font-size:18px;font-weight:600;font-family:monospace;${isTemporaryAccessMode ? '' : 'cursor:pointer'}" ${isTemporaryAccessMode ? '' : `onclick="navigator.clipboard.writeText('${code}').then(()=>showToast('验证码已复制','success'))"`}>${escapeHtml(code)}</span>
+          <span style="font-size:12px;color:var(--text-muted)">${isTemporaryAccessMode ? '验证码' : '点击复制'}</span>
         </div>`;
     }
     

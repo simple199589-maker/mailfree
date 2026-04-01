@@ -29,6 +29,22 @@
       // 改进的路由守卫逻辑：优先使用 loading 页面进行权限检查，避免登录页闪屏
       (function() {
         try{
+          if (/^\/info\/[^/?#]+$/.test(location.pathname)) {
+            var tempAppScript = document.createElement('script');
+            tempAppScript.type = 'module';
+            tempAppScript.src = '/js/app.js';
+            document.body.appendChild(tempAppScript);
+            try{
+              if (window.matchMedia && window.matchMedia('(max-width: 900px)').matches){
+                var tempMobileScript = document.createElement('script');
+                tempMobileScript.type = 'module';
+                tempMobileScript.src = '/js/app-mobile.js';
+                document.body.appendChild(tempMobileScript);
+              }
+            }catch(_){ }
+            return;
+          }
+
           // 检查是否是从其他页面导航过来（非地址栏直接访问）
           var isDirectAccess = !document.referrer || window.history.length <= 1;
           

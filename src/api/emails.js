@@ -21,6 +21,7 @@ import { parseEmailBody } from '../email/parser.js';
 export async function handleEmailsApi(request, db, url, path, options) {
   const isMock = !!options.mockOnly;
   const isMailboxOnly = !!options.mailboxOnly;
+  const isTemporaryAccess = !!options.temporaryAccess;
   const r2 = options.r2;
 
   // 获取邮件列表
@@ -122,6 +123,7 @@ export async function handleEmailsApi(request, db, url, path, options) {
 
   // 清空邮箱邮件
   if (request.method === 'DELETE' && path === '/api/emails') {
+    if (isTemporaryAccess) return errorResponse('临时授权不支持清空邮件', 403);
     if (isMock) return errorResponse('演示模式不可清空', 403);
     const mailbox = url.searchParams.get('mailbox');
     if (!mailbox) {
@@ -149,6 +151,7 @@ export async function handleEmailsApi(request, db, url, path, options) {
 
   // 下载 EML（从 R2 获取）- 必须在通用邮件详情处理器之前
   if (request.method === 'GET' && path.startsWith('/api/email/') && path.endsWith('/download')) {
+    if (isTemporaryAccess) return errorResponse('临时授权不支持下载原始邮件', 403);
     if (options.mockOnly) return errorResponse('演示模式不可下载', 403);
     const id = path.split('/')[3];
     const { results } = await db.prepare('SELECT r2_bucket, r2_object_key FROM messages WHERE id = ?').bind(id).all();
@@ -234,6 +237,7 @@ export async function handleEmailsApi(request, db, url, path, options) {
 
   // 删除单封邮件
   if (request.method === 'DELETE' && path.startsWith('/api/email/')) {
+    if (isTemporaryAccess) return errorResponse('临时授权不支持删除邮件', 403);
     if (isMock) return errorResponse('演示模式不可删除', 403);
     const emailId = path.split('/')[3];
     

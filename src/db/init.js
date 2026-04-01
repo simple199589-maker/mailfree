@@ -54,7 +54,7 @@ async function performFirstTimeSetup(db) {
   }
   
   // 创建表结构（仅在表不存在时）- 包含新字段 forward_to 和 is_favorite
-  await db.exec("CREATE TABLE IF NOT EXISTS mailboxes (id INTEGER PRIMARY KEY AUTOINCREMENT, address TEXT NOT NULL UNIQUE, local_part TEXT NOT NULL, domain TEXT NOT NULL, password_hash TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP, last_accessed_at TEXT, expires_at TEXT, is_pinned INTEGER DEFAULT 0, can_login INTEGER DEFAULT 0, forward_to TEXT DEFAULT NULL, is_favorite INTEGER DEFAULT 0);");
+  await db.exec("CREATE TABLE IF NOT EXISTS mailboxes (id INTEGER PRIMARY KEY AUTOINCREMENT, address TEXT NOT NULL UNIQUE, local_part TEXT NOT NULL, domain TEXT NOT NULL, password_hash TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP, last_accessed_at TEXT, expires_at TEXT, is_pinned INTEGER DEFAULT 0, can_login INTEGER DEFAULT 0, forward_to TEXT DEFAULT NULL, is_favorite INTEGER DEFAULT 0, temp_access_code TEXT DEFAULT NULL);");
   await db.exec("CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY AUTOINCREMENT, mailbox_id INTEGER NOT NULL, sender TEXT NOT NULL, to_addrs TEXT NOT NULL DEFAULT '', subject TEXT NOT NULL, verification_code TEXT, preview TEXT, r2_bucket TEXT NOT NULL DEFAULT 'mail-eml', r2_object_key TEXT NOT NULL DEFAULT '', received_at TEXT DEFAULT CURRENT_TIMESTAMP, is_read INTEGER DEFAULT 0, FOREIGN KEY(mailbox_id) REFERENCES mailboxes(id));");
   await db.exec("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT NOT NULL UNIQUE, password_hash TEXT, role TEXT NOT NULL DEFAULT 'user', can_send INTEGER NOT NULL DEFAULT 0, mailbox_limit INTEGER NOT NULL DEFAULT 10, created_at TEXT DEFAULT CURRENT_TIMESTAMP);");
   await db.exec("CREATE TABLE IF NOT EXISTS user_mailboxes (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, mailbox_id INTEGER NOT NULL, created_at TEXT DEFAULT CURRENT_TIMESTAMP, is_pinned INTEGER NOT NULL DEFAULT 0, UNIQUE(user_id, mailbox_id), FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE, FOREIGN KEY(mailbox_id) REFERENCES mailboxes(id) ON DELETE CASCADE);");
@@ -73,6 +73,7 @@ async function createIndexes(db) {
   await db.exec(`CREATE INDEX IF NOT EXISTS idx_mailboxes_is_pinned ON mailboxes(is_pinned DESC);`);
   await db.exec(`CREATE INDEX IF NOT EXISTS idx_mailboxes_address_created ON mailboxes(address, created_at DESC);`);
   await db.exec(`CREATE INDEX IF NOT EXISTS idx_mailboxes_is_favorite ON mailboxes(is_favorite DESC);`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_mailboxes_temp_access_code ON mailboxes(temp_access_code);`);
   await db.exec(`CREATE INDEX IF NOT EXISTS idx_messages_mailbox_id ON messages(mailbox_id);`);
   await db.exec(`CREATE INDEX IF NOT EXISTS idx_messages_received_at ON messages(received_at DESC);`);
   await db.exec(`CREATE INDEX IF NOT EXISTS idx_messages_r2_object_key ON messages(r2_object_key);`);
@@ -90,7 +91,7 @@ async function createIndexes(db) {
 
 /**
  * 迁移 mailboxes 表字段（向后兼容）
- * 检查并添加缺失的字段：forward_to, is_favorite
+ * 检查并添加缺失的字段：forward_to, is_favorite, temp_access_code
  * @param {object} db - 数据库连接对象
  * @returns {Promise<void>}
  */
@@ -110,6 +111,13 @@ async function migrateMailboxesFields(db) {
       await db.exec("ALTER TABLE mailboxes ADD COLUMN is_favorite INTEGER DEFAULT 0;");
       await db.exec("CREATE INDEX IF NOT EXISTS idx_mailboxes_is_favorite ON mailboxes(is_favorite DESC);");
       console.log('已添加 mailboxes.is_favorite 字段');
+    }
+
+    // 添加 temp_access_code 字段（临时授权码）
+    if (!columnNames.includes('temp_access_code')) {
+      await db.exec("ALTER TABLE mailboxes ADD COLUMN temp_access_code TEXT DEFAULT NULL;");
+      await db.exec("CREATE INDEX IF NOT EXISTS idx_mailboxes_temp_access_code ON mailboxes(temp_access_code);");
+      console.log('已添加 mailboxes.temp_access_code 字段');
     }
   } catch (error) {
     console.error('mailboxes 字段迁移失败:', error);
@@ -140,7 +148,8 @@ export async function setupDatabase(db) {
       is_pinned INTEGER DEFAULT 0,
       can_login INTEGER DEFAULT 0,
       forward_to TEXT DEFAULT NULL,
-      is_favorite INTEGER DEFAULT 0
+      is_favorite INTEGER DEFAULT 0,
+      temp_access_code TEXT DEFAULT NULL
     );
   `);
   
